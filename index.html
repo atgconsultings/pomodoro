@@ -114,19 +114,19 @@
     </section>
 
     <aside class="card player" aria-labelledby="player-title">
-      <h2 id="player-title" style="margin:0 0 6px 0;font-size:16px">Local Music Player</h2>
+      <h2 id="player-title" style="margin:0 0 6px 0;font-size:16px">Music Player</h2>
+
+      <div class="server-tracks">
+        <label class="small">Server Music Files:
+          <select id="server-select" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:white;margin-top:6px">
+            <option value="">-- Select a server track --</option>
+          </select>
+        </label>
+      </div>
 
       <div class="upload">
         <label class="drop" id="drop-area">Drop audio files here or click to select (mp3, m4a)
           <input id="file-input" type="file" accept="audio/mp3,audio/mpeg,audio/mp4,audio/*" multiple style="display:none">
-        </label>
-      </div>
-
-      <div class="server-tracks">
-        <label class="small">Server Music:
-          <select id="server-select" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:white;margin-top:6px">
-            <option value="">-- Select a server track --</option>
-          </select>
         </label>
       </div>
 
@@ -140,13 +140,14 @@
       <div class="track-list" id="track-list"></div>
 
       <audio id="audio" preload="metadata"></audio>
-      <div class="small">Note: Files are used locally in your browser and will not be uploaded to any server. They won't persist across browsers or if you clear site data.</div>
+      <div class="small">Note: There will be a 4-5 seconds delay in MusicPlay when selecting Server Music, since file will get downloaded on your local machine first.</div>
     </aside>
 
     <footer>Tips: Save timer settings to localStorage. Upload multiple files to create a simple playlist.</footer>
   </div>
 
   <script>
+
     // Pomodoro logic
     const inputWork = document.getElementById('input-work');
     const inputShort = document.getElementById('input-short');
@@ -171,9 +172,9 @@
       if(s){
         try{
           const obj = JSON.parse(s);
-          inputWork.value = obj.work || 25;
-          inputShort.value = obj.short || 5;
-          inputLong.value = obj.long || 15;
+          inputWork.value = obj.work || 50;
+          inputShort.value = obj.short || 10;
+          inputLong.value = obj.long || 30;
           cyclesInput.value = obj.cycles || 4;
           autoplayMusicCheckbox.checked = !!obj.autoplayMusic;
         }catch(e){console.warn(e)}
