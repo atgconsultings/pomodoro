@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pomodoro + Local Music Player</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#7c3aed; --muted:#9aa6b2; --glass: rgba(255,255,255,0.04);
+      --success:#10b981;
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071023 0%, #07132a 60%);color:#e6eef6}
+    .container{max-width:980px;margin:28px auto;padding:20px;display:grid;grid-template-columns:1fr 420px;gap:20px}
+    header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}
+    h1{font-size:20px;margin:0}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 6px 18px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+
+    /* Pomodoro */
+    .pomodoro{display:flex;flex-direction:column;gap:14px}
+    .timer-display{display:flex;align-items:center;gap:18px}
+    .clock{font-size:54px;font-weight:600;letter-spacing:2px;width:150px;display:inline-block;}
+    .mode{display:flex;gap:8px}
+    .mode button{background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer}
+    .mode button.active{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white;border:0}
+    .controls{display:flex;gap:8px}
+    .controls button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;background:rgba(255,255,255,0.06);color:#e6eef6}
+    .settings{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type=number]{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .footer-row{display:flex;justify-content:space-between;align-items:center}
+    .mode {display:flex;justify-content:center;gap:12px;margin-top:15px;}
+
+    /* Music player */
+    .player{display:flex;flex-direction:column;gap:12px}
+    .upload{display:flex;align-items:center;gap:10px}
+    .drop{flex:1;padding:10px;border-radius:8px;border:1px dashed rgba(255,255,255,0.06);min-height:56px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+    .track-list{max-height:300px;overflow:auto;padding:6px;display:flex;flex-direction:column;gap:6px}
+    .track{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02)}
+    .track .meta{flex:1}
+    .track button{padding:6px 8px;border-radius:8px;border:0;cursor:pointer;background:rgba(255,255,255,0.03)}
+    .play-controls{display:flex;gap:8px;align-items:center}
+    .small{font-size:13px;color:var(--muted)}
+
+    footer{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;margin-top:6px}
+
+    @media (max-width:920px){
+      .container{grid-template-columns:1fr;padding:12px}
+      .player{order:2}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Pomodoro + Local Music Player</h1>
+      <div class="small">Built with HTML • CSS • JavaScript — Upload MP3 / M4A</div>
+    </header>
+
+    <section class="card pomodoro" aria-labelledby="pom-title">
+      <h2 id="pom-title" style="margin:0 0 6px 0;font-size:16px">Pomodoro Timer</h2>
+
+      <div class="timer-display">
+        <div>
+          <div class="clock" id="time">50:00</div>
+          <div class="small" id="status">Ready</div>
+        </div>
+        <div class="mode" role="tablist" aria-label="Modes">
+          <button id="mode-work" class="active" data-mode="work">Work</button>
+          <button id="mode-short" data-mode="short">Short Break</button>
+          <button id="mode-long" data-mode="long">Long Break</button>
+        </div>
+      </div>
+
+      <div class="settings">
+        <div>
+          <label>Work (minutes)</label>
+          <input type="number" id="input-work" min="1" value="50">
+        </div>
+        <div>
+          <label>Short Break (minutes)</label>
+          <input type="number" id="input-short" min="1" value="10">
+        </div>
+        <div>
+          <label>Long Break (minutes)</label>
+          <input type="number" id="input-long" min="1" value="30">
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="start">Start</button>
+        <button id="pause">Pause</button>
+        <button id="reset">Reset</button>
+        <button id="save-settings">Save</button>
+      </div>
+
+      <div class="footer-row">
+        <div class="small">Cycles until long break: <input id="cycles" type="number" value="4" min="1" style="width:56px;display:inline-block;margin-left:8px"></div>
+        <div class="small">Auto-play music on start: <input id="autoplay-music" type="checkbox" style="transform:scale(1.1);margin-left:6px"></div>
+      </div>
+    </section>
+
+    <!-- TODO LIST -->
+    <section class="card" id="todo-card" aria-labelledby="todo-title" style="display:flex;flex-direction:column;gap:12px">
+      <h2 id="todo-title" style="margin:0 0 6px 0;font-size:16px">To‑Do List</h2>
+
+      <div style="display:flex;gap:8px">
+        <input id="todo-input" type="text" placeholder="Add a task..." style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:white">
+        <button id="todo-add" style="padding:10px 14px;border-radius:10px;border:0;cursor:pointer;background:rgba(255,255,255,0.06);color:#e6eef6">Add</button>
+      </div>
+
+      <div id="todo-list" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto"></div>
+    </section>
+
+    <aside class="card player" aria-labelledby="player-title">
+      <h2 id="player-title" style="margin:0 0 6px 0;font-size:16px">Local Music Player</h2>
+
+      <div class="upload">
+        <label class="drop" id="drop-area">Drop audio files here or click to select (mp3, m4a)
+          <input id="file-input" type="file" accept="audio/mp3,audio/mpeg,audio/mp4,audio/*" multiple style="display:none">
+        </label>
+      </div>
+
+      <div class="server-tracks">
+        <label class="small">Server Music:
+          <select id="server-select" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:white;margin-top:6px">
+            <option value="">-- Select a server track --</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="play-controls">
+        <button id="prev">⟨ Prev</button>
+        <button id="play">Play</button>
+        <button id="next">Next ⟩</button>
+        <label class="small">Volume <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+      </div>
+
+      <div class="track-list" id="track-list"></div>
+
+      <audio id="audio" preload="metadata"></audio>
+      <div class="small">Note: Files are used locally in your browser and will not be uploaded to any server. They won't persist across browsers or if you clear site data.</div>
+    </aside>
+
+    <footer>Tips: Save timer settings to localStorage. Upload multiple files to create a simple playlist.</footer>
+  </div>
+
+  <script>
+    // Pomodoro logic
+    const inputWork = document.getElementById('input-work');
+    const inputShort = document.getElementById('input-short');
+    const inputLong = document.getElementById('input-long');
+    const timeDisplay = document.getElementById('time');
+    const status = document.getElementById('status');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resetBtn = document.getElementById('reset');
+    const saveSettingsBtn = document.getElementById('save-settings');
+    const modeButtons = document.querySelectorAll('.mode button');
+    const cyclesInput = document.getElementById('cycles');
+    const autoplayMusicCheckbox = document.getElementById('autoplay-music');
+
+    let mode = 'work';
+    let timer = null;
+    let remaining = 0; // seconds
+    let cycleCount = 0;
+
+    function loadSettings(){
+      const s = localStorage.getItem('pomodoro_settings');
+      if(s){
+        try{
+          const obj = JSON.parse(s);
+          inputWork.value = obj.work || 25;
+          inputShort.value = obj.short || 5;
+          inputLong.value = obj.long || 15;
+          cyclesInput.value = obj.cycles || 4;
+          autoplayMusicCheckbox.checked = !!obj.autoplayMusic;
+        }catch(e){console.warn(e)}
+      }
+      setMode(mode); // initialize display
+    }
+
+    function saveSettings(){
+      const obj = {work:+inputWork.value, short:+inputShort.value, long:+inputLong.value, cycles:+cyclesInput.value, autoplayMusic:autoplayMusicCheckbox.checked};
+      localStorage.setItem('pomodoro_settings', JSON.stringify(obj));
+      alert('Settings saved locally.');
+    }
+
+    function secondsForMode(m){
+      if(m==='work') return Math.max(1, +inputWork.value) * 60;
+      if(m==='short') return Math.max(1, +inputShort.value) * 60;
+      return Math.max(1, +inputLong.value) * 60;
+    }
+
+    function formatTime(s){
+      const mm = Math.floor(s/60).toString().padStart(2,'0');
+      const ss = Math.floor(s%60).toString().padStart(2,'0');
+      return `${mm}:${ss}`;
+    }
+
+    function setMode(m){
+      mode = m;
+      modeButtons.forEach(b=>b.classList.toggle('active', b.dataset.mode===m));
+      remaining = secondsForMode(m);
+      timeDisplay.textContent = formatTime(remaining);
+      status.textContent = m=== 'work'? 'Ready to focus' : (m==='short'? 'Short break' : 'Long break');
+    }
+
+    modeButtons.forEach(b=>b.addEventListener('click', ()=>setMode(b.dataset.mode)));
+
+    function tick(){
+      if(remaining<=0){
+        clearInterval(timer); timer=null;
+        onTimerEnd();
+        return;
+      }
+      remaining--;
+      timeDisplay.textContent = formatTime(remaining);
+    }
+
+    function onTimerEnd(){
+      // switch mode
+      if(mode==='work'){
+        cycleCount++;
+        const targetCycles = Math.max(1, +cyclesInput.value);
+        if(cycleCount % targetCycles === 0){
+          setMode('long');
+        } else setMode('short');
+      } else {
+        // after break -> back to work
+        setMode('work');
+      }
+      // Auto start next session
+      startTimer();
+      // Optionally play a short chime (use WebAudio beep)
+      playBeep();
+      // If user checked autoplay music and a playlist exists, play music
+      if(autoplayMusicCheckbox.checked){
+        try{document.getElementById('play').dispatchEvent(new Event('click'))}catch(e){}
+      }
+    }
+
+    function startTimer(){
+      if(timer) return; // already running
+      if(remaining<=0) remaining = secondsForMode(mode);
+      timer = setInterval(tick,1000);
+      status.textContent = mode==='work'? 'Working...' : 'On break';
+    }
+    function pauseTimer(){
+      if(timer){clearInterval(timer);timer=null;status.textContent='Paused';}
+    }
+    function resetTimer(){
+      pauseTimer();
+      cycleCount = 0;
+      setMode('work');
+    }
+
+    function playBeep(){
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type='sine'; o.frequency.value=880;
+        g.gain.value=0.05;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        setTimeout(()=>{o.stop(); ctx.close();},200);
+      }catch(e){console.warn('beep failed',e)}
+    }
+
+    startBtn.addEventListener('click', ()=>{startTimer();});
+    pauseBtn.addEventListener('click', ()=>{pauseTimer();});
+    resetBtn.addEventListener('click', ()=>{resetTimer();});
+    saveSettingsBtn.addEventListener('click', saveSettings);
+
+    // initialize
+    loadSettings();
+
+    // TODO LIST LOGIC
+    const todoInput = document.getElementById('todo-input');
+    const todoAdd = document.getElementById('todo-add');
+    const todoList = document.getElementById('todo-list');
+
+    let todos = JSON.parse(localStorage.getItem('todos') || '[]');
+
+    function renderTodos(){
+      todoList.innerHTML = '';
+      todos.forEach((t,i)=>{
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '10px';
+        row.style.background = 'rgba(255,255,255,0.02)';
+        row.style.padding = '10px';
+        row.style.borderRadius = '8px';
+
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = t.done;
+        chk.addEventListener('input', ()=>{
+          todos[i].done = chk.checked;
+          saveTodos();
+          renderTodos();
+        });
+
+        const text = document.createElement('div');
+        text.textContent = t.text;
+        text.style.flex = '1';
+        text.style.textDecoration = t.done ? 'line-through' : 'none';
+        text.style.color = t.done ? '#7e8792' : '#e6eef6';
+
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.style.padding = '6px 10px';
+        del.style.borderRadius = '8px';
+        del.style.border = '0';
+        del.style.cursor = 'pointer';
+        del.style.background = 'rgba(255,255,255,0.06)';
+        del.addEventListener('click', ()=>{
+          todos.splice(i,1);
+          saveTodos();
+          renderTodos();
+        });
+
+        row.appendChild(chk);
+        row.appendChild(text);
+        row.appendChild(del);
+        todoList.appendChild(row);
+      });
+    }
+
+    function saveTodos(){
+      localStorage.setItem('todos', JSON.stringify(todos));
+    }
+
+    todoAdd.addEventListener('click', ()=>{
+      const val = todoInput.value.trim();
+      if(!val) return;
+      todos.push({text: val, done: false});
+      todoInput.value = '';
+      saveTodos();
+      renderTodos();
+    });
+
+    todoInput.addEventListener('keydown', e=>{
+      if(e.key === 'Enter') todoAdd.click();
+    });
+
+    renderTodos();
+
+    // Music player logic
+    const serverSelect = document.getElementById('server-select');
+    let serverSelected = false; // will be true when a server track is actively selected
+
+    // SERVER_TRACKS
+    const serverTracks = [
+      { name: "[SynthWare] Night Drive", url: "server-music/night_drive_SYNTHWAVE_MUSIC.mp3" },
+      { name: "[SynthWare] Retrowave CyberPubk", url: "server-music/retrowave_cyberpunk.mp3" },
+      { name: "[SongTracks] Eminem Best Mix", url: "server-music/eminem_hits.mp3" },
+      { name: "[SongTracks] LinkPark Best Mix", url: "server-music/linkin_park_hits.mp3" },
+      { name: "[SongTracks] Imagine Dragons Mix", url: "server-music/imagine_dragons.mp3" },
+      { name: "[SongTracks] Nefex Best Mix", url: "server-music/nefex_hits.mp3" },
+      { name: "[Lofi] Lofi HopHop LofiGirl", url: "server-music/lofi_hip_hop.mp3" },
+      { name: "[Lofi] Lofi HopHop Codify", url: "server-music/lofi_hip_hop_codify.mp3" },
+      { name: "[Rock] Rock Music Mix", url: "server-music/rock_music_mix.mp3" },
+      { name: "[BG_Music] Coding Deep Focus", url: "server-music/coding_spree.mp3" },
+      { name: "[BG_Music] Rain Sound", url: "server-music/rain_sound.mp3" },
+    ];
+
+    function loadServerTracks(){
+       serverTracks.forEach((t,i)=>{
+         const opt = document.createElement('option');
+         opt.value = i;
+         opt.textContent = t.name;
+         serverSelect.appendChild(opt);
+       });
+    }
+    loadServerTracks();
+
+    serverSelect.addEventListener('change', () => {
+      if (serverSelect.value === "") {
+        // user cleared selection — mark server as not selected but do not disturb the local playlist
+        serverSelected = false;
+        return;
+      }
+      serverSelected = true;
+      const t = serverTracks[serverSelect.value];
+      // load server track into audio and play — do NOT change `current` (local playlist index)
+      audio.src = t.url;
+      audio.play().catch(() => {});
+      playBtn.textContent = 'Pause';
+      renderTracks();
+    });
+
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('file-input');
+    const trackList = document.getElementById('track-list');
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('play');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+    const volume = document.getElementById('volume');
+
+    let tracks = []; // {name, url, file}
+    let current = -1;
+
+    function renderTracks(){
+      trackList.innerHTML = '';
+      tracks.forEach((t,i)=>{
+        const el = document.createElement('div'); el.className='track';
+        const meta = document.createElement('div'); meta.className='meta';
+        meta.innerHTML = `<div style="font-weight:600">${t.name}</div><div class="small">${t.file ? (Math.round((t.file.size/1024)/1024*100)/100)+' MB' : ''}</div>`;
+        const btn = document.createElement('button'); btn.textContent = (i===current && !audio.paused)? 'Pause' : 'Play';
+        btn.addEventListener('click', ()=>{
+          if(i===current){
+            if(audio.paused) audio.play(); else audio.pause();
+          } else {
+            playIndex(i);
+          }
+          renderTracks();
+        });
+        const remove = document.createElement('button'); remove.textContent='Remove'; remove.style.marginLeft='6px';
+        remove.addEventListener('click', ()=>{removeTrack(i)});
+        el.appendChild(meta); el.appendChild(btn); el.appendChild(remove);
+        trackList.appendChild(el);
+      });
+    }
+
+    function addFiles(files){
+      Array.from(files).forEach(f=>{
+        if(!f.type.startsWith('audio')) return;
+        const url = URL.createObjectURL(f);
+        tracks.push({name: f.name, url, file: f});
+      });
+      if(current===-1 && tracks.length>0) current=0;
+      renderTracks();
+    }
+
+    function playIndex(i){
+      if(i<0 || i>=tracks.length) return;
+      current = i;
+      audio.src = tracks[i].url;
+      audio.play();
+      renderTracks();
+    }
+    function removeTrack(i){
+      if(i<0 || i>=tracks.length) return;
+      // revoke objectURL
+      if(tracks[i].url) URL.revokeObjectURL(tracks[i].url);
+      tracks.splice(i,1);
+      if(current===i) { audio.pause(); audio.src=''; current=-1; }
+      else if(current>i) current--;
+      renderTracks();
+    }
+
+    fileInput.addEventListener('change', (e)=>{ addFiles(e.target.files); fileInput.value=''; });
+    dropArea.addEventListener('click', ()=>fileInput.click());
+
+    ['dragenter','dragover'].forEach(ev=>{
+      dropArea.addEventListener(ev, (e)=>{ e.preventDefault(); dropArea.style.borderColor='rgba(255,255,255,0.16)'; });
+    });
+    ['dragleave','drop'].forEach(ev=>{
+      dropArea.addEventListener(ev, (e)=>{ e.preventDefault(); dropArea.style.borderColor='rgba(255,255,255,0.06)'; });
+    });
+    dropArea.addEventListener('drop', (e)=>{ addFiles(e.dataTransfer.files); });
+
+    playBtn.addEventListener('click', () => {
+      // If a server track is selected, toggle play/pause for it first
+      if (serverSelected) {
+        if (!audio.src) {
+          // fallback: try to load the selected server track
+          const t = serverTracks[serverSelect.value];
+          if (t) { audio.src = t.url; }
+        }
+        if (audio.paused) audio.play(); else audio.pause();
+        renderTracks();
+        return;
+      }
+
+      // No server track selected — prefer local playlist
+      if (!audio.src) {
+        if (tracks.length > 0) { playIndex(current === -1 ? 0 : current); return; }
+        return;
+      }
+
+      if (audio.paused) audio.play(); else audio.pause();
+      renderTracks();
+    });
+
+    prevBtn.addEventListener('click', ()=>{
+      if(tracks.length===0) return;
+      const idx = (current-1+tracks.length)%tracks.length; playIndex(idx);
+    });
+    nextBtn.addEventListener('click', ()=>{
+      if(tracks.length===0) return;
+      const idx = (current+1)%tracks.length; playIndex(idx);
+    });
+
+    audio.addEventListener('ended', ()=>{
+      // auto next
+      if(tracks.length===0) return;
+      const idx = (current+1)%tracks.length; playIndex(idx);
+    });
+
+    audio.addEventListener('play', ()=>{ playBtn.textContent='Pause'; renderTracks(); });
+    audio.addEventListener('pause', ()=>{ playBtn.textContent='Play'; renderTracks(); });
+
+    volume.addEventListener('input', (e)=>{ audio.volume = +e.target.value; });
+    audio.volume = +volume.value;
+
+    // Make sure tracks are garbage-collected on unload
+    window.addEventListener('unload', ()=>{ tracks.forEach(t=>{ if(t.url) URL.revokeObjectURL(t.url); }); });
+
+    // Accessibility: keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if(e.code==='Space' && (document.activeElement.tagName.toLowerCase()!=='input')){ e.preventDefault(); playBtn.click(); }
+      if(e.key==='p'){ startBtn.click(); }
+    });
+  </script>
+</body>
+</html>
+
